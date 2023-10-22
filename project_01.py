@@ -10,10 +10,9 @@ from nand.solutions import solved_01
 @chip
 def Not(inputs, outputs):
     in_ = inputs.in_
-
-    # SOLVERS: replace this with a Nand
-    n1 = solved_01.Not(in_=in_)
-
+    # n1 = Nand(a=in_, b=1)
+    # Or:
+    n1 = Nand(a=in_, b=in_)
     outputs.out = n1.out
 
 
@@ -21,33 +20,29 @@ def Not(inputs, outputs):
 def Or(inputs, outputs):
     a = inputs.a
     b = inputs.b
-
-    # SOLVERS: replace this with one or more Nands and Nots
-    n1 = solved_01.Or(a=a, b=b)
-
-    outputs.out = n1.out
+    not_a = Not(in_=a)
+    not_b = Not(in_=b)
+    nand_a_b = Nand(a=not_a.out, b=not_b.out)
+    outputs.out = nand_a_b.out
 
 
 @chip
 def And(inputs, outputs):
     a = inputs.a
     b = inputs.b
-
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.And(a=a, b=b)
-
-    outputs.out = n1.out
+    n1 = Nand(a=a, b=b)
+    n2 = Nand(a=n1.out, b=1)
+    outputs.out = n2.out
 
 
 @chip
 def Xor(inputs, outputs):
     a = inputs.a
     b = inputs.b
-
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.Xor(a=a, b=b)
-
-    outputs.out = n1.out
+    a_and_not_b = And(a=a, b=Not(in_=b).out)
+    b_and_not_a = And(a=Not(in_=a).out, b=b)
+    or_a_b = Or(a=a_and_not_b.out, b=b_and_not_a.out)
+    outputs.out = or_a_b.out
 
 
 @chip
@@ -56,10 +51,18 @@ def Mux(inputs, outputs):
     b = inputs.b
     sel = inputs.sel
 
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.Mux(a=a, b=b, sel=sel)
+    # The idea is to use sel as a switch: if sel is 1, it will allow a to pass,
+    # and if sel is 0, it will let b to pass. Note how the (not sel) is used
+    # to reverse the value of sel, blocking the other input.
+    #
+    # a -------,====[)o-.
+    # sel -.--'          ;=[)o-- out
+    #      `-=[)o-,=[)o-'
+    # b ----------'
 
-    outputs.out = n1.out
+    sel_a = Nand(a=a, b=Nand(a=sel, b=sel).out)
+    sel_b = Nand(a=b, b=sel)
+    outputs.out = Nand(a=sel_a.out, b=sel_b.out).out
 
 
 @chip
@@ -110,23 +113,16 @@ def DMux8Way(inputs, outputs):
 @chip
 def Not16(inputs, outputs):
     in_ = inputs.in_
-
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    # Hint: use outputs.out[0] = ... in_[0] ..., etc. to connect each bit of the output
-    n1 = solved_01.Not16(in_=in_)
-
-    outputs.out = n1.out
+    for i in range(16):
+        outputs.out[i] = Not(in_=in_[i]).out
 
 
 @chip
 def And16(inputs, outputs):
     a = inputs.a
     b = inputs.b
-
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.And16(a=a, b=b)
-
-    outputs.out = n1.out
+    for i in range(16):
+        outputs.out[i] = And(a=a[i], b=b[i]).out
 
 
 @chip
