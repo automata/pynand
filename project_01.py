@@ -10,8 +10,16 @@ from nand.solutions import solved_01
 @chip
 def Not(inputs, outputs):
     in_ = inputs.in_
+    
+    # No matter what we give to AND, if we fix one input as 1, it
+    # will give as output the other input: 0 1 -> 0 and 1 1 -> 1. If
+    # we NOT that, we have 0 1 -> 1 and 0 1 -> 0, or 0 -> 1 and 1 -> 0!
+    #
     # n1 = Nand(a=in_, b=1)
-    # Or:
+    #
+    # Or, if we git 0 0 to AND, it gives us 0. And if we give 1 1 to AND,
+    # it gives us 1. If we NOT that, we get 0 0 -> 1 and 1 1 -> 0. So,
+    # we actually have 0 -> 1 and 1 -> 0, a NOT!
     n1 = Nand(a=in_, b=in_)
     outputs.out = n1.out
 
@@ -30,6 +38,7 @@ def Or(inputs, outputs):
 def And(inputs, outputs):
     a = inputs.a
     b = inputs.b
+    # This one is easy, we just have to Not the Nand!
     n1 = Nand(a=a, b=b)
     n2 = Nand(a=n1.out, b=1)
     outputs.out = n2.out
@@ -55,9 +64,9 @@ def Mux(inputs, outputs):
     # and if sel is 0, it will let b to pass. Note how the (not sel) is used
     # to reverse the value of sel, blocking the other input.
     #
-    # a -------,====[)o-.
-    # sel -.--'          ;=[)o-- out
-    #      `-=[)o-,=[)o-'
+    # a -------;====[)o--;=[)o-- out
+    # sel -.---'         |
+    #      `-=[)o-;=[)o--'
     # b ----------'
 
     sel_a = Nand(a=a, b=Nand(a=sel, b=sel).out)
@@ -70,11 +79,24 @@ def DMux(inputs, outputs):
     in_ = inputs.in_
     sel = inputs.sel
 
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.DMux(in_=in_, sel=sel)
+    # We revert sel in the first AND so when SEL=0, it will actually allow
+    # IN to pass to A (because SEL is going to be flipped to 1).
+    # For the second AND, there's no need to flip SEL, given that we want
+    # to IN to pass to B when SEL=1. So the idea here is to use AND as a switch.
 
-    outputs.a = n1.a
-    outputs.b = n1.b
+    #   in  -+------;=[)--- a
+    #   sel -|-+-[>-'
+    #        | `----;=[)--- b
+    #        `------'
+
+    # in sel  a b
+    # 0  0    0 0
+    # 0  1    0 0
+    # 1  0    1 0
+    # 1  1    0 1
+
+    outputs.a = And(a=in_, b=Not(in_=sel).out).out
+    outputs.b = And(a=in_, b=sel).out
 
 
 @chip
@@ -82,14 +104,42 @@ def DMux4Way(inputs, outputs):
     in_ = inputs.in_
     sel = inputs.sel
 
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    # Hint: use sel[0] and sel[1] to extract each bit
-    n1 = solved_01.DMux4Way(in_=in_, sel=sel)
+    # This one is actually pretty easy! The trick is to understand the boolean equation
+    # that represents this gate:
+    #
+    # Important: note that the logic table is inverted! b (sel[1]), then a (sel[0]).
+    # Not sure why, maybe some requirement later... but I'm representing
+    #
+    #      F = ~b~aA + ~baB + b~aC + baD
+    #
+    # The ba AND gate prefixing each output will actually let the output pass or not.
+    # It corresponds exactly to the boolean expression of the AND: b=0 a=1 -> B will pass, etc.
+    #
+    # Solving the equation for b=0 a=1:
+    #
+    #      F = ~0~1A + ~01B + 0~1C + 01D 
+    #      F = 10A + 11B + 00C + 01D
+    #      F = 0 + B + 0 + 0
+    #      F = B
+    #
+    # b a  A B C D
+    # 0 0  i 0 0 0
+    # 0 1  0 i 0 0  
+    # 1 0  0 0 i 0
+    # 1 1  0 0 0 i
 
-    outputs.a = n1.a
-    outputs.b = n1.b
-    outputs.c = n1.c
-    outputs.d = n1.d
+    outputs.a = And(a=And(a=Not(in_=sel[1]).out,
+                          b=Not(in_=sel[0]).out).out,
+                    b=in_).out
+    outputs.b = And(a=And(a=Not(in_=sel[1]).out,
+                          b=sel[0]).out,
+                    b=in_).out
+    outputs.c = And(a=And(a=sel[1],
+                          b=Not(in_=sel[0]).out).out,
+                    b=in_).out
+    outputs.d = And(a=And(a=sel[1],
+                          b=sel[0]).out,
+                    b=in_).out
 
 
 @chip
@@ -97,22 +147,61 @@ def DMux8Way(inputs, outputs):
     in_ = inputs.in_
     sel = inputs.sel
 
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.DMux8Way(in_=in_, sel=sel)
+    # The same as the DMux4Way above, but instead of 2 control bits/inputs, we
+    # have 3 (because 2^3 = 8). Note that it's again reversed cba instead of abc!
 
-    outputs.a = n1.a
-    outputs.b = n1.b
-    outputs.c = n1.c
-    outputs.d = n1.d
-    outputs.e = n1.e
-    outputs.f = n1.f
-    outputs.g = n1.g
-    outputs.h = n1.h
+    # FF = ~c~b~aA + ~c~baB + ~cb~aC + ~cbaD + c~b~aE + c~baF + cb~aG + cbaH
+    #
+    # c b a ABCDEFGH
+    # 0 0 0 i0000000
+    # 0 0 1 0i000000
+    # 0 1 0 00i00000
+    # 0 1 1 000i0000
+    # 1 0 0 0000i000
+    # 1 0 1 00000i00
+    # 1 1 0 000000i0
+    # 1 1 1 0000000i
+
+    outputs.a = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                b=Not(in_=sel[1]).out).out,
+                          b=Not(in_=sel[0]).out).out,
+                    b=in_).out
+    outputs.b = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                b=Not(in_=sel[1]).out).out,
+                          b=sel[0]).out,
+                    b=in_).out
+    outputs.c = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                b=sel[1]).out,
+                          b=Not(in_=sel[0]).out).out,
+                    b=in_).out
+    outputs.d = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                b=sel[1]).out,
+                          b=sel[0]).out,
+                    b=in_).out
+    outputs.e = And(a=And(a=And(a=sel[2],
+                                b=Not(in_=sel[1]).out).out,
+                          b=Not(in_=sel[0]).out).out,
+                    b=in_).out
+    outputs.f = And(a=And(a=And(a=sel[2],
+                                b=Not(in_=sel[1]).out).out,
+                          b=sel[0]).out,
+                    b=in_).out
+    outputs.g = And(a=And(a=And(a=sel[2],
+                                b=sel[1]).out,
+                          b=Not(in_=sel[0]).out).out,
+                    b=in_).out
+    outputs.h = And(a=And(a=And(a=sel[2],
+                                b=sel[1]).out,
+                          b=sel[0]).out,
+                    b=in_).out
 
 
 @chip
 def Not16(inputs, outputs):
     in_ = inputs.in_
+
+    # Here we just repeat the unary Not gate to all inputs
+
     for i in range(16):
         outputs.out[i] = Not(in_=in_[i]).out
 
@@ -121,6 +210,9 @@ def Not16(inputs, outputs):
 def And16(inputs, outputs):
     a = inputs.a
     b = inputs.b
+
+    # Here we just repeat the binary And gate to all inputs
+
     for i in range(16):
         outputs.out[i] = And(a=a[i], b=b[i]).out
 
