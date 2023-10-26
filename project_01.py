@@ -4,8 +4,7 @@
 
 from nand import Nand, chip
 
-# SOLVERS: remove this import to get started
-from nand.solutions import solved_01
+# from nand.solutions import solved_01
 
 @chip
 def Not(inputs, outputs):
@@ -38,7 +37,9 @@ def Or(inputs, outputs):
 def And(inputs, outputs):
     a = inputs.a
     b = inputs.b
+
     # This one is easy, we just have to Not the Nand!
+
     n1 = Nand(a=a, b=b)
     n2 = Nand(a=n1.out, b=1)
     outputs.out = n2.out
@@ -48,6 +49,10 @@ def And(inputs, outputs):
 def Xor(inputs, outputs):
     a = inputs.a
     b = inputs.b
+
+    # This one is exactly the interpretation of what we say as the
+    # definition of exclusivity: if a, then not b OR if b, then not a :-)
+
     a_and_not_b = And(a=a, b=Not(in_=b).out)
     b_and_not_a = And(a=Not(in_=a).out, b=b)
     or_a_b = Or(a=a_and_not_b.out, b=b_and_not_a.out)
@@ -83,12 +88,12 @@ def DMux(inputs, outputs):
     # IN to pass to A (because SEL is going to be flipped to 1).
     # For the second AND, there's no need to flip SEL, given that we want
     # to IN to pass to B when SEL=1. So the idea here is to use AND as a switch.
-
+    #
     #   in  -+------;=[)--- a
     #   sel -|-+-[>-'
     #        | `----;=[)--- b
     #        `------'
-
+    #
     # in sel  a b
     # 0  0    0 0
     # 0  1    0 0
@@ -149,8 +154,8 @@ def DMux8Way(inputs, outputs):
 
     # The same as the DMux4Way above, but instead of 2 control bits/inputs, we
     # have 3 (because 2^3 = 8). Note that it's again reversed cba instead of abc!
-
-    # FF = ~c~b~aA + ~c~baB + ~cb~aC + ~cbaD + c~b~aE + c~baF + cb~aG + cbaH
+    #
+    #      FF = ~c~b~aA + ~c~baB + ~cb~aC + ~cbaD + c~b~aE + c~baF + cb~aG + cbaH
     #
     # c b a ABCDEFGH
     # 0 0 0 i0000000
@@ -200,7 +205,7 @@ def DMux8Way(inputs, outputs):
 def Not16(inputs, outputs):
     in_ = inputs.in_
 
-    # Here we just repeat the unary Not gate to all inputs
+    # Here we just repeat the unary Not gate to all inputs/outputs
 
     for i in range(16):
         outputs.out[i] = Not(in_=in_[i]).out
@@ -211,7 +216,7 @@ def And16(inputs, outputs):
     a = inputs.a
     b = inputs.b
 
-    # Here we just repeat the binary And gate to all inputs
+    # Here we just repeat the binary And gate to all inputs/outputs
 
     for i in range(16):
         outputs.out[i] = And(a=a[i], b=b[i]).out
@@ -223,10 +228,13 @@ def Mux16(inputs, outputs):
     b = inputs.b
     sel = inputs.sel
 
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.Mux16(a=a, b=b, sel=sel)
-
-    outputs.out = n1.out
+    # Same thing, we just repeat the binary Mux to all inputs/outputs.
+    # The sel is one bit wide while the inputs and outputs are 16 bit wide.
+    
+    for i in range(16):
+        sel_a = Nand(a=a[i], b=Nand(a=sel, b=sel).out).out
+        sel_b = Nand(a=b[i], b=sel).out
+        outputs.out[i] = Nand(a=sel_a, b=sel_b).out
 
 
 @chip
@@ -237,10 +245,37 @@ def Mux4Way16(inputs, outputs):
     d = inputs.d
     sel = inputs.sel
 
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.Mux4Way16(a=a, b=b, c=c, d=d, sel=sel)
+    # We can apply again the same idea we used for DMux before. We can
+    # select based on those AND operations, the difference is that we're going
+    # pass the respective input (A, B, C, ...) instead of only the same input IN
+    # that we used on DMux (because we have here multiple inputs instead of only one).
+    #
+    # Another difference is that we actually OR all the ANDs, so we literally have
+    # the following equation translated to the operation. The parenthesis group
+    # the respective binary OR operations we used:
+    #
+    # F = (~b~aA + (~baB + (b~aC + baD)))
+    #
+    # Note that we're also using 16 bit wise inputs and outputs.
 
-    outputs.out = n1.out
+    for i in range(16):
+        sel_a = And(a=And(a=Not(in_=sel[1]).out,
+                          b=Not(in_=sel[0]).out).out,
+                    b=a[i]).out
+        sel_b = And(a=And(a=Not(in_=sel[1]).out,
+                          b=sel[0]).out,
+                    b=b[i]).out
+        sel_c = And(a=And(a=sel[1],
+                          b=Not(in_=sel[0]).out).out,
+                    b=c[i]).out
+        sel_d = And(a=And(a=sel[1],
+                          b=sel[0]).out,
+                    b=d[i]).out
+
+        outputs.out[i] = Or(a=sel_a,
+                            b=Or(a=sel_b,
+                                 b=Or(a=sel_c,
+                                      b=sel_d).out).out).out
 
 
 @chip
@@ -255,7 +290,50 @@ def Mux8Way16(inputs, outputs):
     h = inputs.h
     sel = inputs.sel
 
-    # SOLVERS: replace this with one or more Nands and/or components defined above
-    n1 = solved_01.Mux8Way16(a=a, b=b, c=c, d=d, e=e, f=f, g=g, h=h, sel=sel)
+    # The same as above, but using 8 inputs! We're implementing the following equation:
+    
+    # FF = (~c~b~aA + (~c~baB + (~cb~aC + (~cbaD + (c~b~aE + (c~baF + (cb~aG + cbaH)))))))
 
-    outputs.out = n1.out
+    for i in range(16):
+        sel_a = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                b=Not(in_=sel[1]).out).out,
+                          b=Not(in_=sel[0]).out).out,
+                    b=a[i]).out
+        sel_b = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                    b=Not(in_=sel[1]).out).out,
+                            b=sel[0]).out,
+                        b=b[i]).out
+        sel_c = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                    b=sel[1]).out,
+                            b=Not(in_=sel[0]).out).out,
+                        b=c[i]).out
+        sel_d = And(a=And(a=And(a=Not(in_=sel[2]).out,
+                                    b=sel[1]).out,
+                            b=sel[0]).out,
+                        b=d[i]).out
+        sel_e = And(a=And(a=And(a=sel[2],
+                                    b=Not(in_=sel[1]).out).out,
+                            b=Not(in_=sel[0]).out).out,
+                        b=e[i]).out
+        sel_f = And(a=And(a=And(a=sel[2],
+                                    b=Not(in_=sel[1]).out).out,
+                            b=sel[0]).out,
+                        b=f[i]).out
+        sel_g = And(a=And(a=And(a=sel[2],
+                                    b=sel[1]).out,
+                            b=Not(in_=sel[0]).out).out,
+                        b=g[i]).out
+        sel_h = And(a=And(a=And(a=sel[2],
+                                    b=sel[1]).out,
+                            b=sel[0]).out,
+                        b=h[i]).out
+
+        outputs.out[i] = Or(a=sel_a,
+                            b=Or(a=sel_b,
+                                 b=Or(a=sel_c,
+                                      b=Or(a=sel_d,
+                                           b=Or(a=sel_e,
+                                                b=Or(a=sel_f,
+                                                     b=Or(a=sel_g,
+                                                          b=sel_h).out).out).out).out).out).out).out
+
