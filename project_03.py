@@ -188,6 +188,8 @@ def PC(inputs, outputs):
     inc = inputs.inc
     reset = inputs.reset
 
+    # ???
+
     reseted = lazy()
     pc = Register(in_=reseted.out, load=1)
 
