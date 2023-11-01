@@ -80,7 +80,9 @@ def CPU(inputs, outputs):
     outputs.writeM = And(a=dm, b=i).out      # Write to M?
     outputs.addressM = a_reg.out             # Address in data memory (of M) (latched)
     outputs.pc = pc.out                      # address of next instruction (latched)
-
+    # Not sure if possible :-)
+    outputs.a = a_reg.out
+    outputs.d = d_reg.out
 
 @chip
 def Computer(inputs, outputs):
@@ -97,6 +99,9 @@ def Computer(inputs, outputs):
     # HACK: need some dependency to force the whole thing to be synthesized.
     # Exposing the PC also makes it easy to observe what's happening in a dumb way.
     outputs.pc = cpu.pc
+    # Can I expose A and D registers as well for debugging?
+    outputs.a = cpu.a
+    outputs.d = cpu.d
 
     # HACK: similar issues, but in this case it's just the particular component that
     # needs to be forced to be included.
