@@ -50,11 +50,20 @@ D;JLE
 # "white" in every pixel;
 # the screen should remain fully clear as long as no key is pressed.
 
-# FILL_ASM = """
-# // Here's where the magic happens:
-# (top)
-#   @0
-# ...
-# """.split('\n')
+FILL_ASM = """
+
+(kb_loop)
+    // Listen to keyboard input, if a key is pressed, jump to black
+    // Otherwise, jump to white
+
+(black_loop)
+    // Iterate on all pixels and black them
+    // Jump back to kb_loop
+
+(white_loop)
+    // Iterate on all pixels and white them
+    // Jump back to kb_loop
+
+""".split('\n')
 
 FILL_ASM = solved_04.FILL_ASM
